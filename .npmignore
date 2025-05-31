@@ -1,5 +1,6 @@
+/assets
+/example
 /node_modules
 /src
-/example
 tsconfig.json
 tsup.config.ts
