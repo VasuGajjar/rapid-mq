@@ -1,0 +1,13 @@
+{
+  "name": "rmq-package-test",
+  "version": "1.0.0",
+  "main": "index.js",
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "rapid-mq": "file:../.",
+    "yargs": "^18.0.0"
+  }
+}
