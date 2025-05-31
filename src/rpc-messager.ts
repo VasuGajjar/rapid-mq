@@ -1,15 +1,29 @@
+/**
+ * RpcMessager - Implements the request/response (RPC) messaging pattern for RabbitMQ.
+ * Allows sending RPC calls and serving RPC methods with automatic correlation and timeout handling.
+ */
+
 import * as crypto from 'crypto';
 import { EventEmitter } from 'stream';
 import * as amqp from 'amqplib';
 
 import { RapidConnector } from "./rapid-connector";
 
+/**
+ * Options for creating an RpcMessager instance.
+ */
 export interface RpcMessagerOptions {
+    /** The RapidConnector instance to use for RabbitMQ connection. */
     connector: RapidConnector;
+    /** (Optional) Name of the exchange to use for RPC. Defaults to 'rpc-exchange'. */
     exchangeName?: string;
+    /** (Optional) Timeout in seconds for RPC calls. Defaults to 5 seconds. */
     timeoutInSec?: number;
 }
 
+/**
+ * RpcMessager provides methods to make RPC calls and serve RPC endpoints using RabbitMQ.
+ */
 export class RpcMessager {
     private _connecter: RapidConnector;
     private _exchangeName: string;
@@ -18,6 +32,11 @@ export class RpcMessager {
     private _responseQueue: string = 'amq.rabbitmq.reply-to';
     private _emitter = new EventEmitter();
 
+    /**
+     * Constructs a new RpcMessager.
+     * @param options - Configuration options for the messager.
+     * @throws {Error} If connector is not provided.
+     */
     constructor(options: RpcMessagerOptions) {
         if (!options.connector) {
             throw new Error("RapidConnector is required");
@@ -28,14 +47,21 @@ export class RpcMessager {
         this._timeoutInSec = options.timeoutInSec || 5;
     }
 
+    /** Returns the RapidConnector instance. */
     get connecter(): RapidConnector {
         return this._connecter;
     }
 
+    /** Returns the exchange name used for RPC. */
     get exchangeName(): string {
         return this._exchangeName;
     }
 
+    /**
+     * Initializes the RpcMessager by creating a channel, asserting the exchange,
+     * and setting up a consumer for the reply-to queue.
+     * @throws {Error} If the connection is not established.
+     */
     async initialize(): Promise<void> {
         if (!this._connecter.connected) {
             await this._connecter.connect();
@@ -58,6 +84,13 @@ export class RpcMessager {
         }, { noAck: true });
     }
 
+    /**
+     * Makes an RPC call to a remote method.
+     * @param method - The name of the remote method (routing key).
+     * @param args - Arguments to pass to the remote method.
+     * @returns Promise<T> - Resolves with the response from the server.
+     * @throws {Error} If the channel is not initialized or if the call times out.
+     */
     async call<T>(method: string, ...args: unknown[]): Promise<T> {
         if (!this._channel) {
             throw new Error("Channel is not initialized");
@@ -87,6 +120,13 @@ export class RpcMessager {
         });
     }
 
+    /**
+     * Registers a server (handler) for an RPC method.
+     * @param method - The name of the method to serve (routing key).
+     * @param callback - The function to handle incoming RPC requests.
+     * @returns Promise<void>
+     * @throws {Error} If the channel is not initialized.
+     */
     async server(method: string, callback: (...args: unknown[]) => Promise<unknown> | unknown): Promise<void> {
         if (!this._channel) {
             throw new Error("Channel is not initialized");
