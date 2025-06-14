@@ -5,34 +5,21 @@
 
 import * as amqp from 'amqplib';
 
-import { RapidConnector } from "./rapid-connector";
+import { Messager, MessagerOptions } from './messager';
 
 /**
  * Options for DirectMessager.
  */
-export interface DirectMessagerOptions {
-    /**
-     * The RapidConnector instance to use for RabbitMQ connection.
-     */
-    connector: RapidConnector;
-    /**
-     * Unique consumer tag for identifying the consumer.
-     */
+export interface DirectMessagerOptions extends MessagerOptions {
+    /** Unique consumer tag for identifying the consumer. */
     consumerTag: string;
-    /**
-     * (Optional) Name of the exchange to use for sending messages.
-     * Defaults to 'direct-exchange'.
-     */
-    exchangeName?: string;
 }
 
 /**
  * DirectMessager - A class that implements direct messaging using RabbitMQ.
  * It allows sending messages to a specific consumer and listening for messages on a queue.
  */
-export class DirectMessager {
-    private _connecter: RapidConnector;
-    private _exchangeName: string;
+export class DirectMessager extends Messager {
     private _consumerTag: string;
     private _channel: amqp.Channel | null = null;
 
@@ -40,28 +27,13 @@ export class DirectMessager {
         if (!options.connector) {
             throw new Error("RapidConnector is required");
         }
-
+        
         if (!options.consumerTag) {
             throw new Error("Consumer tag is required");
         }
-
-        this._connecter = options.connector;
+        
+        super(options.connector, options.exchangeName || 'direct-exchange');
         this._consumerTag = options.consumerTag;
-        this._exchangeName = options.exchangeName || 'direct-exchange';
-    }
-
-    /**
-     * Getters for the properties of DirectMessager.
-     */
-    get connecter(): RapidConnector {
-        return this._connecter;
-    }
-
-    /**
-     * The name of the exchange used for sending messages.
-     */
-    get exchangeName(): string {
-        return this._exchangeName;
     }
 
     /**
@@ -76,11 +48,11 @@ export class DirectMessager {
      * This method must be called before using the publish or subscribe methods.
      */
     async initialize(): Promise<void> {
-        if (!this._connecter.connected) {
-            await this._connecter.connect();
+        if (!this._connector.connected) {
+            await this._connector.connect();
         }
 
-        this._channel = await this._connecter.connection.createChannel();
+        this._channel = await this._connector.connection.createChannel();
         if (!this._channel) {
             throw new Error("Connection is not established");
         }

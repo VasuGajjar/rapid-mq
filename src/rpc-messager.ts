@@ -7,16 +7,12 @@ import * as crypto from 'crypto';
 import { EventEmitter } from 'stream';
 import * as amqp from 'amqplib';
 
-import { RapidConnector } from "./rapid-connector";
+import { Messager, MessagerOptions } from './messager';
 
 /**
  * Options for creating an RpcMessager instance.
  */
-export interface RpcMessagerOptions {
-    /** The RapidConnector instance to use for RabbitMQ connection. */
-    connector: RapidConnector;
-    /** (Optional) Name of the exchange to use for RPC. Defaults to 'rpc-exchange'. */
-    exchangeName?: string;
+export interface RpcMessagerOptions extends MessagerOptions {
     /** (Optional) Timeout in seconds for RPC calls. Defaults to 5 seconds. */
     timeoutInSec?: number;
     /** (Optional) EventEmitter instance for handling RPC responses. Defaults to a new EventEmitter. */
@@ -26,9 +22,7 @@ export interface RpcMessagerOptions {
 /**
  * RpcMessager provides methods to make RPC calls and serve RPC endpoints using RabbitMQ.
  */
-export class RpcMessager {
-    private _connecter: RapidConnector;
-    private _exchangeName: string;
+export class RpcMessager extends Messager {
     private _timeoutInSec: number;
     private _channel: amqp.Channel | null = null;
     private _responseQueue: string = 'amq.rabbitmq.reply-to';
@@ -44,20 +38,9 @@ export class RpcMessager {
             throw new Error("RapidConnector is required");
         }
 
-        this._connecter = options.connector;
-        this._exchangeName = options.exchangeName || 'rpc-exchange';
+        super(options.connector, options.exchangeName || 'rpc-exchange');
         this._timeoutInSec = options.timeoutInSec || 5;
         this._emitter = options.emitter || new EventEmitter();
-    }
-
-    /** Returns the RapidConnector instance. */
-    get connecter(): RapidConnector {
-        return this._connecter;
-    }
-
-    /** Returns the exchange name used for RPC. */
-    get exchangeName(): string {
-        return this._exchangeName;
     }
 
     /**
@@ -66,11 +49,11 @@ export class RpcMessager {
      * @throws {Error} If the connection is not established.
      */
     async initialize(): Promise<void> {
-        if (!this._connecter.connected) {
-            await this._connecter.connect();
+        if (!this._connector.connected) {
+            await this._connector.connect();
         }
 
-        this._channel = await this._connecter.connection.createChannel();
+        this._channel = await this._connector.connection.createChannel();
         if (!this._channel) {
             throw new Error("Connection is not established");
         }
