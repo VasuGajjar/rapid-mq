@@ -19,6 +19,8 @@ export interface RpcMessagerOptions {
     exchangeName?: string;
     /** (Optional) Timeout in seconds for RPC calls. Defaults to 5 seconds. */
     timeoutInSec?: number;
+    /** (Optional) EventEmitter instance for handling RPC responses. Defaults to a new EventEmitter. */
+    emitter?: EventEmitter;
 }
 
 /**
@@ -30,7 +32,7 @@ export class RpcMessager {
     private _timeoutInSec: number;
     private _channel: amqp.Channel | null = null;
     private _responseQueue: string = 'amq.rabbitmq.reply-to';
-    private _emitter = new EventEmitter();
+    private _emitter:EventEmitter;
 
     /**
      * Constructs a new RpcMessager.
@@ -45,6 +47,7 @@ export class RpcMessager {
         this._connecter = options.connector;
         this._exchangeName = options.exchangeName || 'rpc-exchange';
         this._timeoutInSec = options.timeoutInSec || 5;
+        this._emitter = options.emitter || new EventEmitter();
     }
 
     /** Returns the RapidConnector instance. */
@@ -77,7 +80,7 @@ export class RpcMessager {
         this._channel.consume(this._responseQueue, (result) => {
             if (result && result.properties.correlationId) {
                 this._emitter.emit(
-                    result.properties.correlationId,
+                    `rpc:${result.properties.correlationId}`,
                     JSON.parse(result.content.toString('utf-8'))?.[0] || null,
                 );
             }
@@ -101,7 +104,7 @@ export class RpcMessager {
             const data = Buffer.from(JSON.stringify(args), 'utf-8');
 
             const timeout = setTimeout(() => {
-                this._emitter.removeListener(requestId, responseHandler);
+                this._emitter.removeListener(`rpc:${requestId}`, responseHandler);
                 reject(new Error(`RPC call to ${method} timed out after ${this._timeoutInSec} seconds`));
             }, this._timeoutInSec * 1000);
 
@@ -111,7 +114,7 @@ export class RpcMessager {
                 else reject(new Error(`No response received for RPC call to ${method}`));
             }
 
-            this._emitter.once(requestId, responseHandler);
+            this._emitter.once(`rpc:${requestId}`, responseHandler);
 
             this._channel!.publish(this._exchangeName, method, data, {
                 replyTo: this._responseQueue,
