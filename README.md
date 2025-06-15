@@ -31,7 +31,7 @@ npm install rapid-mq
 
 Use `PubSubMessager` for broadcast-style messaging where multiple consumers can receive the same message.
 
-**Publisher Example:**
+**Publisher Example (with TTL):**
 ```typescript
 import { RapidConnector, PubSubMessager } from 'rapid-mq';
 
@@ -51,7 +51,8 @@ async function main() {
 
   await pubsub.publish('user.created', {
     userId: '123',
-    email: 'user@example.com'
+    email: 'user@example.com',
+    10000 // (Optional) Publish with TTL (e.g., 10 seconds)
   });
 }
 
