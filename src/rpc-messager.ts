@@ -23,7 +23,7 @@ export interface RpcMessagerOptions extends MessagerOptions {
  * RpcMessager provides methods to make RPC calls and serve RPC endpoints using RabbitMQ.
  */
 export class RpcMessager extends Messager {
-    private _timeoutInSec: number;
+    private _timeout: number;
     private _channel: amqp.Channel | null = null;
     private _responseQueue: string = 'amq.rabbitmq.reply-to';
     private _emitter:EventEmitter;
@@ -44,7 +44,7 @@ export class RpcMessager extends Messager {
             options.durable ?? true,
             options.exclusive ?? false,
         );
-        this._timeoutInSec = options.timeoutInSec || 5;
+        this._timeout = (options.timeoutInSec || 5) * 1000;
         this._emitter = options.emitter || new EventEmitter();
     }
 
@@ -93,8 +93,8 @@ export class RpcMessager extends Messager {
 
             const timeout = setTimeout(() => {
                 this._emitter.removeListener(`rpc:${requestId}`, responseHandler);
-                reject(new Error(`RPC call to ${method} timed out after ${this._timeoutInSec} seconds`));
-            }, this._timeoutInSec * 1000);
+                reject(new Error(`RPC call to ${method} timed out after ${this._timeout / 1000} seconds`));
+            }, this._timeout);
 
             const responseHandler = async (result: Buffer) => {
                 clearTimeout(timeout);
@@ -110,6 +110,7 @@ export class RpcMessager extends Messager {
             this._channel!.publish(this._exchangeName, method, data, {
                 replyTo: this._responseQueue,
                 correlationId: requestId,
+                expiration: this._timeout,
             });
         });
     }

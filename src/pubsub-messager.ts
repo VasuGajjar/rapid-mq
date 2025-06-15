@@ -72,16 +72,17 @@ export class PubSubMessager extends Messager {
      * Publish a message to a specific topic.
      * @param topic - The topic to publish the message to.
      * @param message - The message to publish. It can be any serializable object.
+     * @param ttl - Optional time-to-live for the message in milliseconds.
      * @returns {boolean} - Returns true if the message was published successfully.
      * @throws {Error} - Throws an error if the channel is not initialized or if publishing fails.
      */
-    async publish(topic: string, message: unknown): Promise<boolean> {
+    async publish(topic: string, message: unknown, ttl?: number): Promise<boolean> {
         if (!this._channel) {
             throw new Error("Channel is not initialized");
         }
 
         const data = await this._connector.encoder.encode(message, this._exchangeName, topic);
-        return this._channel.publish(this._exchangeName, topic, data);
+        return this._channel.publish(this._exchangeName, topic, data, { expiration: ttl });
     }
 
     /**

@@ -73,16 +73,17 @@ export class DirectMessager extends Messager {
      * Send a message to a specific consumer.
      * @param sendTo - The consumer tag or queue name to send the message to.
      * @param message - The message to send.
+     * @param ttl - Optional time-to-live for the message in milliseconds.
      * @returns {boolean} - A boolean true if the message was sent successfully, false otherwise.
      * @throws {Error} - Throws an error if the channel is not initialized or if publishing fails.
      */
-    async send(sendTo: string, message: unknown): Promise<boolean> {
+    async send(sendTo: string, message: unknown, ttl?: number): Promise<boolean> {
         if (!this._channel) {
             throw new Error("Channel is not initialized");
         }
 
         const data = await this._connector.encoder.encode(message, this._exchangeName, sendTo);
-        return this._channel.publish(this._exchangeName, sendTo, data);
+        return this._channel.publish(this._exchangeName, sendTo, data, { expiration: ttl });
     }
 
     /**
