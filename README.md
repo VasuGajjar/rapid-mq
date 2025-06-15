@@ -25,49 +25,58 @@ npm install rapid-mq
 
 ---
 
-## Quick Start
+## Quick Start Examples
 
-### Example: Pub/Sub Producer & Consumer
+### 1. Publisher/Subscriber Pattern
 
-**Producer:**
+Use `PubSubMessager` for broadcast-style messaging where multiple consumers can receive the same message.
 
-```js
-const { RapidConnector, PubSubMessager } = require('rapid-mq');
+**Publisher Example:**
+```typescript
+import { RapidConnector, PubSubMessager } from 'rapid-mq';
 
 async function main() {
   const connector = new RapidConnector({
-    url: 'amqp://user:pass@localhost:5672/vhost',
-    appId: 'myApp',
+    url: 'amqp://localhost',
+    appId: 'publisher-service'
   });
   await connector.connect();
 
-  const pubsub = new PubSubMessager({ connector, appGroup: 'myGroup' });
+  const pubsub = new PubSubMessager({
+    connector,
+    appGroup: 'notifications', // Logical grouping
+    exchangeName: 'events' // Optional custom exchange
+  });
   await pubsub.initialize();
 
-  await pubsub.publish('my.topic', { hello: 'world' });
-  console.log('Message published!');
+  await pubsub.publish('user.created', {
+    userId: '123',
+    email: 'user@example.com'
+  });
 }
 
 main();
 ```
 
-**Consumer:**
-
-```js
-const { RapidConnector, PubSubMessager } = require('rapid-mq');
+**Subscriber Example:**
+```typescript
+import { RapidConnector, PubSubMessager } from 'rapid-mq';
 
 async function main() {
   const connector = new RapidConnector({
-    url: 'amqp://user:pass@localhost:5672/vhost',
-    appId: 'myApp',
+    url: 'amqp://localhost',
+    appId: 'email-service'
   });
   await connector.connect();
 
-  const pubsub = new PubSubMessager({ connector, appGroup: 'myGroup' });
+  const pubsub = new PubSubMessager({
+    connector,
+    appGroup: 'notifications'
+  });
   await pubsub.initialize();
 
-  await pubsub.subscribe('my.topic', (msg) => {
-    console.log('Received:', msg);
+  await pubsub.subscribe('user.created', (message) => {
+    console.log('New user:', message);
   });
 }
 
@@ -76,88 +85,278 @@ main();
 
 ---
 
-## API Documentation
+### 2. RPC (Remote Procedure Call) Pattern
+
+Use `RpcMessager` for request-response style communication.
+
+**Server Example:**
+```typescript
+import { RapidConnector, RpcMessager } from 'rapid-mq';
+
+async function main() {
+  const connector = new RapidConnector({
+    url: 'amqp://localhost',
+    appId: 'math-service'
+  });
+  await connector.connect();
+
+  const rpc = new RpcMessager({
+    connector,
+    exchangeName: 'math', // Optional
+    timeoutInSec: 30 // Default: 5 seconds
+  });
+  await rpc.initialize();
+
+  await rpc.server('add', async (a: number, b: number) => {
+    return a + b;
+  });
+}
+
+main();
+```
+
+**Client Example:**
+```typescript
+import { RapidConnector, RpcMessager } from 'rapid-mq';
+
+async function main() {
+  const connector = new RapidConnector({
+    url: 'amqp://localhost',
+    appId: 'calculator-app'
+  });
+  await connector.connect();
+
+  const rpc = new RpcMessager({ connector });
+  await rpc.initialize();
+
+  const result = await rpc.call<number>('add', 5, 3);
+  console.log('5 + 3 =', result); // Output: 8
+}
+
+main();
+```
+
+---
+
+### 3. Direct Messaging Pattern
+
+Use `DirectMessager` for point-to-point communication where each message should be processed by exactly one consumer.
+
+**Sender Example:**
+```typescript
+import { RapidConnector, DirectMessager } from 'rapid-mq';
+
+async function main() {
+  const connector = new RapidConnector({
+    url: 'amqp://localhost',
+    appId: 'order-service'
+  });
+  await connector.connect();
+
+  const direct = new DirectMessager({
+    connector,
+    consumerTag: 'order-service-1',
+    exchangeName: 'orders' // Optional
+  });
+  await direct.initialize();
+
+  await direct.send('payment-service', {
+    orderId: '12345',
+    amount: 99.99
+  });
+}
+
+main();
+```
+
+**Receiver Example:**
+```typescript
+import { RapidConnector, DirectMessager } from 'rapid-mq';
+
+async function main() {
+  const connector = new RapidConnector({
+    url: 'amqp://localhost',
+    appId: 'payment-service'
+  });
+  await connector.connect();
+
+  const direct = new DirectMessager({
+    connector,
+    consumerTag: 'payment-service'
+  });
+  await direct.initialize();
+
+  await direct.listen((message) => {
+    console.log('Processing payment:', message);
+  });
+}
+
+main();
+```
+
+---
+
+## API Reference
 
 ### RapidConnector
 
-Handles connection management to RabbitMQ.
+Manages the connection to RabbitMQ.
 
-```ts
-new RapidConnector(options: { url: string; appId: string })
+**Constructor:**
+```typescript
+new RapidConnector(options: {
+  url: string;
+  appId: string;
+  encoder?: RapidEncoder; // Optional custom encoder
+})
 ```
 
-- **url**: RabbitMQ connection string.
-- **appId**: Unique identifier for your application.
+**Properties:**
+- `url: string` - RabbitMQ connection URL.
+- `appId: string` - Unique identifier for your application.
+- `connected: boolean` - Current connection status.
+- `encoder: RapidEncoder` - Encoder used for message serialization.
 
 **Methods:**
-- `connect(): Promise<void>` — Establish connection.
-- `disconnect(): Promise<void>` — Close connection.
-- `connected: boolean` — Connection status.
+- `connect(): Promise<void>` - Establish connection to RabbitMQ.
+- `disconnect(): Promise<void>` - Close connection gracefully.
+- `connection` (getter) - Returns the underlying amqplib connection.
 
 ---
 
 ### PubSubMessager
 
-Implements the publish/subscribe pattern.
+Implements the publish/subscribe messaging pattern.
 
-```ts
-new PubSubMessager(options: { connector: RapidConnector; appGroup: string; exchangeName?: string })
+**Constructor:**
+```typescript
+new PubSubMessager(options: {
+  connector: RapidConnector;
+  appGroup: string;
+  exchangeName?: string;
+  durable?: boolean;
+  exclusive?: boolean;
+})
 ```
 
-- **connector**: Instance of `RapidConnector`.
-- **appGroup**: Logical group for consumers.
-- **exchangeName**: (optional) Custom exchange name.
+**Properties:**
+- `connector: RapidConnector` - Connection instance.
+- `appGroup: string` - Logical group name for consumers.
+- `exchangeName: string` - Exchange name (default: 'pubsub-exchange').
+- `durable: boolean` - Whether the exchange/queue is durable (default: true).
+- `exclusive: boolean` - Whether the queue is exclusive (default: false).
 
 **Methods:**
-- `initialize(): Promise<void>` — Prepare the messager.
-- `publish(topic: string, message: unknown): Promise<boolean>` — Publish a message.
-- `subscribe(topic: string, callback: (msg: unknown) => void): Promise<void>` — Listen for messages.
+- `initialize(): Promise<void>` - Set up exchanges and queues.
+- `publish(topic: string, message: any): Promise<boolean>` - Publish message to topic.
+- `subscribe(topic: string, callback: (msg: any) => void): Promise<void>` - Subscribe to topic.
 
 ---
 
 ### RpcMessager
 
-Implements request/response (RPC) pattern.
+Implements the request/response (RPC) messaging pattern.
 
-```ts
-new RpcMessager(options: { connector: RapidConnector; exchangeName?: string; timeoutInSec?: number })
+**Constructor:**
+```typescript
+new RpcMessager(options: {
+  connector: RapidConnector;
+  exchangeName?: string;
+  timeoutInSec?: number;
+  durable?: boolean;
+  exclusive?: boolean;
+  emitter?: EventEmitter;
+})
 ```
 
-- **connector**: Instance of `RapidConnector`.
-- **exchangeName**: (optional) Custom exchange name.
-- **timeoutInSec**: (optional) RPC timeout in seconds.
+**Properties:**
+- `connector: RapidConnector` - Connection instance.
+- `exchangeName: string` - Exchange name (default: 'rpc-exchange').
+- `timeoutInSec: number` - RPC timeout in seconds (default: 5).
+- `durable: boolean` - Whether the exchange/queue is durable (default: true).
+- `exclusive: boolean` - Whether the queue is exclusive (default: false).
 
 **Methods:**
-- `initialize(): Promise<void>`
-- `call<T>(method: string, ...args: unknown[]): Promise<T>` — Call an RPC method.
-- `server(method: string, callback: (...args: unknown[]) => Promise<unknown> | unknown): Promise<void>` — Serve an RPC method.
+- `initialize(): Promise<void>` - Set up RPC infrastructure.
+- `call<T>(method: string, ...args: any[]): Promise<T>` - Call remote method.
+- `server(method: string, handler: Function): Promise<void>` - Register RPC handler.
 
 ---
 
 ### DirectMessager
 
-Implements direct (point-to-point) messaging.
+Implements point-to-point (direct) messaging.
 
-```ts
-new DirectMessager(options: { connector: RapidConnector; consumerTag: string; exchangeName?: string })
+**Constructor:**
+```typescript
+new DirectMessager(options: {
+  connector: RapidConnector;
+  consumerTag: string;
+  exchangeName?: string;
+  durable?: boolean;
+  exclusive?: boolean;
+})
 ```
 
-- **connector**: Instance of `RapidConnector`.
-- **consumerTag**: Unique tag for the consumer.
-- **exchangeName**: (optional) Custom exchange name.
+**Properties:**
+- `connector: RapidConnector` - Connection instance.
+- `consumerTag: string` - Unique identifier for consumer.
+- `exchangeName: string` - Exchange name (default: 'direct-exchange').
+- `durable: boolean` - Whether the exchange/queue is durable (default: true).
+- `exclusive: boolean` - Whether the queue is exclusive (default: false).
 
 **Methods:**
-- `initialize(): Promise<void>`
-- `send(sendTo: string, message: unknown): Promise<boolean>` — Send a direct message.
-- `listen(callback: (msg: unknown) => void): Promise<void>` — Listen for direct messages.
+- `initialize(): Promise<void>` - Set up direct exchange and queue.
+- `send(to: string, message: any): Promise<boolean>` - Send message to specific consumer.
+- `listen(callback: (msg: any) => void): Promise<void>` - Listen for messages.
 
 ---
 
-## Notes & Best Practices
+## Encoder System
 
-- **Connection Management**: Always call `await connector.connect()` before using any messager.
-- **Message Format**: All messages are serialized as JSON arrays internally; you can send any serializable object.
-- **No Need to Assert Default Queues**: For RPC, you can consume from `amq.rabbitmq.reply-to` without asserting it.
+Rapid-MQ uses an encoder system to serialize and deserialize messages. By default, it uses JSON, but you can provide your own encoder by implementing the `RapidEncoder` interface.
+
+**Default Encoder:**
+- Encodes messages as `[type, value]` JSON arrays.
+- Handles special types like `Date`.
+
+**Custom Encoder Example:**
+```typescript
+import { RapidEncoder } from 'rapid-mq';
+
+class MyEncoder implements RapidEncoder {
+  async encode(message: unknown): Promise<Buffer> {
+    // Custom serialization logic
+    return Buffer.from(JSON.stringify(message));
+  }
+  async decode(data: Buffer): Promise<unknown> {
+    // Custom deserialization logic
+    return JSON.parse(data.toString());
+  }
+}
+
+const connector = new RapidConnector({
+  url: 'amqp://localhost',
+  appId: 'my-app',
+  encoder: new MyEncoder()
+});
+```
+
+**RapidEncoder Interface:**
+```typescript
+interface RapidEncoder {
+  encode(message: unknown, exchange: string, topic: string): Promise<Buffer>;
+  decode(data: Buffer, exchange: string, topic: string): Promise<unknown>;
+}
+```
+
+---
+
+## Best Practices
+
+- **Always call `initialize()`** on messager instances before using them.
+- **Handle errors** in your callbacks and publishing logic.
+- **Disconnect** your connector when your app shuts down.
 
 ---
 
@@ -165,8 +364,5 @@ new DirectMessager(options: { connector: RapidConnector; consumerTag: string; ex
 
 ISC © vasu_gajjar
 
----
-
 <p align="center">
   <img src="assets/logo.png" alt="Rapid-MQ Logo" width="64"/>
-</p>
