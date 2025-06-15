@@ -6,12 +6,20 @@ export interface MessagerOptions {
 
     /** (Optional) Name of the exchange to use for messaging */
     exchangeName?: string;
+
+    /** (Optional) Name of the queue to use for messaging */
+    durable?: boolean;
+
+    /** (Optional) Whether the queue should be durable */
+    exclusive?: boolean;
 }
 
 export class Messager {
     constructor(
         protected _connector: RapidConnector,
-        protected _exchangeName: string
+        protected _exchangeName: string,
+        protected _durable: boolean,
+        protected _exclusive: boolean,
     ) {}
 
     public get connector(): RapidConnector {

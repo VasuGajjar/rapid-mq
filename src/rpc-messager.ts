@@ -38,7 +38,12 @@ export class RpcMessager extends Messager {
             throw new Error("RapidConnector is required");
         }
 
-        super(options.connector, options.exchangeName || 'rpc-exchange');
+        super(
+            options.connector,
+            options.exchangeName || 'rpc-exchange',
+            options.durable ?? true,
+            options.exclusive ?? false,
+        );
         this._timeoutInSec = options.timeoutInSec || 5;
         this._emitter = options.emitter || new EventEmitter();
     }
@@ -58,7 +63,7 @@ export class RpcMessager extends Messager {
             throw new Error("Connection is not established");
         }
 
-        await this._channel.assertExchange(this._exchangeName, 'direct', { durable: true });
+        await this._channel.assertExchange(this._exchangeName, 'direct', { durable: this._durable });
 
         this._channel.consume(this._responseQueue, (result) => {
             if (result && result.properties.correlationId) {
@@ -121,7 +126,7 @@ export class RpcMessager extends Messager {
             throw new Error("Channel is not initialized");
         }
 
-        const queue = await this._channel.assertQueue(method, { durable: true });
+        const queue = await this._channel.assertQueue(method, { durable: this._durable, exclusive: this._exclusive });
         await this._channel.bindQueue(queue.queue, this._exchangeName, method);
 
         this._channel.consume(queue.queue, async (msg) => {

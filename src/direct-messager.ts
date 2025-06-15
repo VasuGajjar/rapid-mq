@@ -32,7 +32,13 @@ export class DirectMessager extends Messager {
             throw new Error("Consumer tag is required");
         }
         
-        super(options.connector, options.exchangeName || 'direct-exchange');
+        super(
+            options.connector,
+            options.exchangeName || 'direct-exchange',
+            options.durable ?? true,
+            options.exclusive ?? false,
+        );
+
         this._consumerTag = options.consumerTag;
     }
 
@@ -57,8 +63,8 @@ export class DirectMessager extends Messager {
             throw new Error("Connection is not established");
         }
 
-        await this._channel.assertExchange(this._exchangeName, 'direct', { durable: true });
-        const queue = await this._channel.assertQueue(`${this._consumerTag}.queue`, { durable: true });
+        await this._channel.assertExchange(this._exchangeName, 'direct', { durable: this._durable });
+        const queue = await this._channel.assertQueue(`${this._consumerTag}.queue`, { durable: this._durable, exclusive: this._exclusive });
         await this._channel.bindQueue(queue.queue, this._exchangeName, queue.queue);
         await this._channel.bindQueue(queue.queue, this._exchangeName, this._consumerTag);
     }

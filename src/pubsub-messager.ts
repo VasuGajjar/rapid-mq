@@ -34,7 +34,12 @@ export class PubSubMessager extends Messager {
             throw new Error("App group is required");
         }
 
-        super(options.connector, options.exchangeName || 'pubsub-exchange');
+        super(
+            options.connector,
+            options.exchangeName || 'pubsub-exchange',
+            options.durable ?? true,
+            options.exclusive ?? false,
+        );
         this._appGroup = options.appGroup;
     }
 
@@ -60,7 +65,7 @@ export class PubSubMessager extends Messager {
             throw new Error("Connection is not established");
         }
 
-        await this._channel.assertExchange(this._exchangeName, 'topic', { durable: true });
+        await this._channel.assertExchange(this._exchangeName, 'topic', { durable: this._durable });
     }
 
     /**
@@ -91,7 +96,7 @@ export class PubSubMessager extends Messager {
             throw new Error("Channel is not initialized");
         }
 
-        const queue = await this._channel.assertQueue(`${this._appGroup}.${topic}`, { durable: true });
+        const queue = await this._channel.assertQueue(`${this._appGroup}.${topic}`, { durable: this._durable, exclusive: this._exclusive });
         await this._channel.bindQueue(queue.queue, this._exchangeName, topic);
         await this._channel.bindQueue(queue.queue, this._exchangeName, `${this._appGroup}.${topic}`);
 
