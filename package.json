@@ -3,7 +3,7 @@
   "description": "A simple and fast RabbitMQ client for Node.js",
   "private": false,
   "displayName": "Rapid-MQ",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.ts",
