@@ -4,6 +4,7 @@
  */
 
 import * as amqp from 'amqplib';
+import { DefaultRapidEncoder, RapidEncoder } from './rapic-encoder';
 
 /**
  * Options for creating a RapidConnector instance.
@@ -13,6 +14,8 @@ export interface RapidConnectorOptions {
     url: string;
     /** Unique application identifier for this connector */
     appId: string;
+    /** Optional encoder for message serialization */
+    encoder?: RapidEncoder;
 }
 
 /**
@@ -23,6 +26,7 @@ export class RapidConnector {
     private _appId: string;
     private _connection: amqp.ChannelModel | null = null;
     private _isConnected: boolean = false;
+    private _encoder: RapidEncoder;
 
     /**
      * Constructs a new RapidConnector.
@@ -40,6 +44,7 @@ export class RapidConnector {
 
         this._url = options.url;
         this._appId = options.appId;
+        this._encoder = options.encoder || new DefaultRapidEncoder();
     }
 
     /**
@@ -103,5 +108,9 @@ export class RapidConnector {
      */
     get appId(): string {
         return this._appId;
+    }
+
+    get encoder(): RapidEncoder {
+        return this._encoder;
     }
 }

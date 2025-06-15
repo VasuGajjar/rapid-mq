@@ -75,7 +75,7 @@ export class DirectMessager extends Messager {
             throw new Error("Channel is not initialized");
         }
 
-        const data = Buffer.from(JSON.stringify([message]), 'utf-8');
+        const data = await this._connector.encoder.encode(message, this._exchangeName, sendTo);
         return this._channel.publish(this._exchangeName, sendTo, data);
     }
 
@@ -90,11 +90,11 @@ export class DirectMessager extends Messager {
             throw new Error("Channel is not initialized");
         }
 
-        await this._channel.consume(`${this._consumerTag}.queue`, (msg) => {
+        await this._channel.consume(`${this._consumerTag}.queue`, async (msg) => {
             try {
                 if (msg && msg.content) {
-                    const message = JSON.parse(msg.content.toString('utf-8'))?.[0] || null;
-                    callback(message);
+                    const message = await this._connector.encoder.decode(msg.content, this._exchangeName, this._consumerTag);
+                    await callback(message);
                 }
             } catch (error) {
                 console.error("Error processing message:", error);

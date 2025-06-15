@@ -75,7 +75,7 @@ export class PubSubMessager extends Messager {
             throw new Error("Channel is not initialized");
         }
 
-        const data = Buffer.from(JSON.stringify([message]), 'utf-8');
+        const data = await this._connector.encoder.encode(message, this._exchangeName, topic);
         return this._channel.publish(this._exchangeName, topic, data);
     }
 
@@ -95,10 +95,11 @@ export class PubSubMessager extends Messager {
         await this._channel.bindQueue(queue.queue, this._exchangeName, topic);
         await this._channel.bindQueue(queue.queue, this._exchangeName, `${this._appGroup}.${topic}`);
 
-        this._channel.consume(queue.queue, (msg) => {
+        this._channel.consume(queue.queue, async (msg) => {
             try {
                 if (msg !== null) {
-                    callback(JSON.parse(msg.content.toString('utf-8'))?.[0]);
+                    const message = await this._connector.encoder.decode(msg.content, this._exchangeName, topic);
+                    await callback(message);
                 }
             } catch (error) {
                 console.error("Error processing message:", error);
